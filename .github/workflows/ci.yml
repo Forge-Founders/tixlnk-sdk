@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  core-kmp-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install tools
+        run: |
+          mise install
+      - name: Run core-kmp tests
+        run: |
+          mise x -- gradle -p core-kmp allTests
+
+  core-kmp-api-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install tools
+        run: |
+          mise install
+      - name: Verify public API stability
+        run: |
+          mise x -- gradle -p core-kmp apiCheck
+
+  android-example-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install tools
+        run: |
+          mise install
+      - name: Assemble Android example
+        run: |
+          mise x -- gradle :core-kmp-example-android:assembleDebug
+
+  flutter-plugin-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+      - name: Install FVM
+        run: dart pub global activate fvm
+      - name: Add pub global bin to PATH
+        run: echo "$HOME/.pub-cache/bin" >> "$GITHUB_PATH"
+      - name: Run flutter-plugin tests through fvm
+        working-directory: flutter-plugin
+        run: |
+          fvm install 3.47.9
+          fvm use 3.47.9 --force
+          fvm flutter test
+
+  ios-example-build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+      - name: Resolve packages and run example tests
+        working-directory: flutter-plugin/example
+        run: |
+          flutter pub get
+          flutter test
+          flutter analyze
+      - name: Build iOS Simulator example
+        working-directory: flutter-plugin/example
+        run: flutter build ios --simulator --debug

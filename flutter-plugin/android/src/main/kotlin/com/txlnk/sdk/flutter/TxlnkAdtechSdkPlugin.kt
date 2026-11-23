@@ -214,7 +214,9 @@ class TxlnkAdtechSdkPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             return
         }
 
-        if (prefs.getBoolean(KEY_MATCH_DONE, false)) {
+        val previous = loadMatchState()
+        val sentToken = deferredToken?.takeIf(String::isNotBlank)
+        if (!previous.shouldMatch(sentToken)) {
             prefs.getString(KEY_ATTRIBUTION_DATA, null)?.let { cached ->
                 attributionSink?.success(cached)
             }
@@ -223,8 +225,8 @@ class TxlnkAdtechSdkPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         }
 
         val payload = JSONObject().apply {
-            if (!deferredToken.isNullOrBlank()) {
-                put("token", deferredToken)
+            if (sentToken != null) {
+                put("token", sentToken)
             }
             if (!tenantId.isNullOrBlank()) {
                 put("tenant_id", tenantId)
@@ -253,13 +255,9 @@ class TxlnkAdtechSdkPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         val deepLink = json.optString("deep_link", "")
                         val attributionData = json.optJSONObject("data")?.toString()
 
-                        prefs.edit()
-                            .putBoolean(KEY_MATCH_DONE, true)
-                            .putBoolean(KEY_IS_ORGANIC, false)
-                            .putString(KEY_CLICK_ID, clickId)
-                            .putString(KEY_DEEP_LINK, deepLink)
-                            .putString(KEY_ATTRIBUTION_DATA, attributionData)
-                            .apply()
+                        saveMatchState(
+                            previous.afterMatched(sentToken, clickId, deepLink, attributionData),
+                        )
 
                         if (deepLink.isNotBlank()) {
                             mainHandler.post { deepLinkSink?.success(deepLink) }
@@ -269,15 +267,7 @@ class TxlnkAdtechSdkPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         }
                     }
 
-                    404 -> {
-                        prefs.edit()
-                            .putBoolean(KEY_MATCH_DONE, true)
-                            .putBoolean(KEY_IS_ORGANIC, true)
-                            .remove(KEY_CLICK_ID)
-                            .remove(KEY_DEEP_LINK)
-                            .remove(KEY_ATTRIBUTION_DATA)
-                            .apply()
-                    }
+                    404 -> saveMatchState(previous.afterNotFound(sentToken))
 
                     else -> {
                         val errorText = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
@@ -333,14 +323,33 @@ class TxlnkAdtechSdkPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         }.start()
     }
 
+    // A token different from the last one used allows one new match on the
+    // next matchDevice; see MatchState. Nothing persisted changes here, so a
+    // restart before that match keeps the earlier result.
     private fun storeDeferredToken(token: String) {
         deferredToken = token
-        if (prefs.getBoolean(KEY_IS_ORGANIC, false)) {
-            prefs.edit()
-                .putBoolean(KEY_MATCH_DONE, false)
-                .putBoolean(KEY_IS_ORGANIC, false)
-                .apply()
-        }
+    }
+
+    private fun loadMatchState(): MatchState {
+        return MatchState(
+            matchDone = prefs.getBoolean(KEY_MATCH_DONE, false),
+            isOrganic = prefs.getBoolean(KEY_IS_ORGANIC, false),
+            clickId = prefs.getString(KEY_CLICK_ID, null),
+            deepLink = prefs.getString(KEY_DEEP_LINK, null),
+            attributionData = prefs.getString(KEY_ATTRIBUTION_DATA, null),
+            consumedToken = prefs.getString(KEY_CONSUMED_TOKEN, null),
+        )
+    }
+
+    private fun saveMatchState(state: MatchState) {
+        prefs.edit()
+            .putBoolean(KEY_MATCH_DONE, state.matchDone)
+            .putBoolean(KEY_IS_ORGANIC, state.isOrganic)
+            .putString(KEY_CLICK_ID, state.clickId)
+            .putString(KEY_DEEP_LINK, state.deepLink)
+            .putString(KEY_ATTRIBUTION_DATA, state.attributionData)
+            .putString(KEY_CONSUMED_TOKEN, state.consumedToken)
+            .apply()
     }
 
     private fun sendTrack(payload: JSONObject, result: MethodChannel.Result) {
@@ -394,5 +403,6 @@ class TxlnkAdtechSdkPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         private const val KEY_DEEP_LINK = "adtech.deep_link"
         private const val KEY_ATTRIBUTION_DATA = "adtech.attribution_data"
         private const val KEY_IS_ORGANIC = "adtech.is_organic"
+        private const val KEY_CONSUMED_TOKEN = "adtech.consumed_match_token"
     }
 }

@@ -35,7 +35,7 @@ dependencies:
     git:
       url: https://github.com/Forge-Founders/tixlnk-sdk.git
       path: flutter-plugin
-      ref: v0.2.0 # fixe sempre uma tag publicada
+      ref: v0.2.1 # fixe sempre uma tag publicada
 ```
 
 Se estiver em desenvolvimento local:

@@ -1,3 +1,4 @@
 [tools]
 flutter = "3.47.9"
 gradle = "9.8.2"
+gitleaks = "8.30.1"

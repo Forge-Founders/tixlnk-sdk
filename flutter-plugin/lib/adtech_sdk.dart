@@ -71,6 +71,12 @@ class AdTechSdk {
   /// esse token no UserDefaults compartilhado com o App Clip e, no primeiro
   /// match sem token em memória, lê e apaga essa chave. Sem a chave no
   /// Info.plist, esse passo não faz nada. O token não vai para log.
+  ///
+  /// Com o app já aberto, chame [matchDevice] em seguida. Um token diferente
+  /// do último já usado libera exatamente um novo match, mesmo depois de um
+  /// match não orgânico, e o deep link e a atribuição dele chegam por
+  /// [onDeferredDeepLink] e [onAttributionData]. O mesmo token nunca faz
+  /// match duas vezes.
   Future<void> setDeferredLinkToken(String token) async {
     await _methodChannel.invokeMethod<void>(
       'setDeferredLinkToken',
@@ -96,7 +102,11 @@ class AdTechSdk {
 
   /// Executa explicitamente o match de instalação no nativo.
   ///
-  /// Em uso normal, `init` já chama esse fluxo uma vez (first-open).
+  /// Em uso normal, `init` já chama esse fluxo uma vez (first-open). Depois
+  /// disso, só faz uma nova chamada de rede quando há um token novo de
+  /// [setDeferredLinkToken] ou [setDeferredLinkUrl]; sem ele, mantém o
+  /// resultado salvo. Um token novo sem match (`404`) não apaga a atribuição
+  /// anterior.
   Future<void> matchDevice() async {
     await _methodChannel.invokeMethod<void>('matchDevice');
   }

@@ -16,6 +16,7 @@ public class TxlnkAdtechSdkPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
   private static let attributionDataKey = "adtech.attribution_data"
   private static let isOrganicKey = "adtech.is_organic"
   private static let matchDoneKey = "adtech.match_done"
+  private static let consumedTokenKey = "adtech.consumed_match_token"
   private static let appGroupInfoKey = "TixlnkAppGroup"
   private static let pendingMatchTokenKey = "tixlnk.pending_match_token"
 
@@ -144,7 +145,10 @@ public class TxlnkAdtechSdkPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
       return
     }
 
-    if defaults.bool(forKey: Self.matchDoneKey) {
+    // Same rules as MatchState on Android: the first open matches once; then
+    // only a token different from the last one used allows one new match.
+    let previousMatchDone = defaults.bool(forKey: Self.matchDoneKey)
+    if previousMatchDone && !hasUnconsumedToken() {
       if let cached = defaults.string(forKey: Self.attributionDataKey), !cached.isEmpty {
         attributionSink?(cached)
       }
@@ -157,13 +161,16 @@ public class TxlnkAdtechSdkPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
       return
     }
 
-    consumeAppGroupTokenIfNeeded()
+    if !previousMatchDone {
+      consumeAppGroupTokenIfNeeded()
+    }
+    let sentToken = deferredToken.flatMap { $0.isEmpty ? nil : $0 }
 
     // Only the opaque click token and ids: no device signals are collected
     // (no fingerprinting; the match is token based).
     var payload: [String: Any] = [:]
-    if let deferredToken, !deferredToken.isEmpty {
-      payload["token"] = deferredToken
+    if let sentToken {
+      payload["token"] = sentToken
     }
     if let tenantId, !tenantId.isEmpty {
       payload["tenant_id"] = tenantId
@@ -227,6 +234,7 @@ public class TxlnkAdtechSdkPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
           self.defaults.set(clickId, forKey: Self.clickIdKey)
           self.defaults.set(deepLink, forKey: Self.deepLinkKey)
           self.defaults.set(attributionDataString, forKey: Self.attributionDataKey)
+          self.rememberConsumedToken(sentToken)
           if !deepLink.isEmpty {
             self.deepLinkSink?(deepLink)
           }
@@ -236,6 +244,12 @@ public class TxlnkAdtechSdkPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
           result(nil)
 
         case 404:
+          self.rememberConsumedToken(sentToken)
+          if previousMatchDone {
+            // A new token that did not match keeps the earlier result.
+            result(nil)
+            return
+          }
           self.defaults.set(true, forKey: Self.matchDoneKey)
           self.defaults.set(true, forKey: Self.isOrganicKey)
           self.defaults.removeObject(forKey: Self.clickIdKey)
@@ -305,10 +319,20 @@ public class TxlnkAdtechSdkPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
     if let shared = appGroupDefaults() {
       shared.set(trimmed, forKey: Self.pendingMatchTokenKey)
     }
-    if defaults.bool(forKey: Self.isOrganicKey) {
-      defaults.set(false, forKey: Self.matchDoneKey)
-      defaults.set(false, forKey: Self.isOrganicKey)
+  }
+
+  private func hasUnconsumedToken() -> Bool {
+    guard let deferredToken, !deferredToken.isEmpty else {
+      return false
     }
+    return deferredToken != defaults.string(forKey: Self.consumedTokenKey)
+  }
+
+  private func rememberConsumedToken(_ token: String?) {
+    guard let token else {
+      return
+    }
+    defaults.set(token, forKey: Self.consumedTokenKey)
   }
 
   /// Reads the App Group named by Info.plist key TixlnkAppGroup.

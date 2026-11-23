@@ -212,4 +212,56 @@ void main() {
       expect(AdTechSdk.parseAttributionPayload(123), isEmpty);
     });
   });
+  group('AdTechSdk new token on a running app', () {
+    const EventChannel deepLinkChannel = EventChannel(
+      'com.txlnk.sdk/adtech/deeplink',
+    );
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        ..setMockMethodCallHandler(channel, null)
+        ..setMockStreamHandler(deepLinkChannel, null);
+    });
+
+    test('sends the new token before matchDevice, in order', () async {
+      final List<MethodCall> calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+            calls.add(methodCall);
+            return null;
+          });
+
+      await AdTechSdk.instance.setDeferredLinkToken('tok-2');
+      await AdTechSdk.instance.matchDevice();
+
+      expect(calls.map((MethodCall call) => call.method).toList(), <String>[
+        'setDeferredLinkToken',
+        'matchDevice',
+      ]);
+      final args = calls.first.arguments as Map<dynamic, dynamic>;
+      expect(args['token'], 'tok-2');
+    });
+
+    test('delivers the deep link of each new match', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockStreamHandler(
+            deepLinkChannel,
+            MockStreamHandler.inline(
+              onListen: (Object? arguments, MockStreamHandlerEventSink sink) {
+                sink.success('app://first');
+                sink.success('app://second');
+                sink.endOfStream();
+              },
+            ),
+          );
+
+      final List<Uri?> links = await AdTechSdk.instance.onDeferredDeepLink
+          .toList();
+
+      expect(links, <Uri?>[
+        Uri.parse('app://first'),
+        Uri.parse('app://second'),
+      ]);
+    });
+  });
 }

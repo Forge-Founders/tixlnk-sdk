@@ -70,8 +70,13 @@ class AdTechClient(
 
     /**
      * Registra o token de match capturado do link (Universal/App Link no iOS,
-     * Play Install Referrer no Android). Enviado como identificador primário no
-     * device match, conforme o contrato do backend.
+     * Play Install Referrer no Android, ou a continuação da mesma conta).
+     * Enviado como identificador primário no device match, conforme o
+     * contrato do backend.
+     *
+     * Um token diferente do último já usado num match libera exatamente um
+     * novo [matchDevice], mesmo depois de um match não orgânico. O mesmo
+     * token nunca faz match duas vezes.
      */
     fun setDeferredLinkToken(token: String) {
         this.deferredToken = token
@@ -125,26 +130,34 @@ class AdTechClient(
      * Executa o fluxo de device match no first-open e persiste o estado de atribuição.
      *
      * Regras:
-     * - Executa apenas uma vez por instalação.
+     * - Executa uma vez por instalação e, depois disso, uma vez por token novo
+     *   registrado em [setDeferredLinkToken] (diferente do último já usado).
+     *   Sem token novo, devolve o estado salvo sem rede.
      * - O match é keyed pelo [deferredToken] (identificador primário) quando
      *   presente; sinais de dispositivo são enviados como contexto opcional.
      * - Sem token em memória, lê e apaga uma vez o token pendente do App Group
      *   ([setAppGroupMatchTokenStore]), quando configurado.
      * - Em `200`, salva `click_id` + `deep_link` e dispara callback [onAttributionData].
-     * - Em `404`, marca instalação orgânica (`is_organic = true`).
+     * - Em `404`, marca instalação orgânica (`is_organic = true`). Num novo
+     *   match por token novo, o `404` mantém o estado anterior e devolve
+     *   `wasFreshMatch = false`.
      *
      * @return [MatchDeviceResult] com o estado final de atribuição.
      * @throws IllegalStateException Quando o SDK não foi inicializado via [init].
      */
     suspend fun matchDevice(): MatchDeviceResult {
-        if (settings.getBoolean(KEY_MATCH_DONE, false)) {
+        val previousMatchDone = settings.getBoolean(KEY_MATCH_DONE, false)
+        if (previousMatchDone && !hasUnconsumedToken()) {
             return loadStoredMatchResult(wasFreshMatch = false)
         }
 
         val config = requireConfig()
-        consumeAppGroupTokenIfNeeded()
+        if (!previousMatchDone) {
+            consumeAppGroupTokenIfNeeded()
+        }
+        val sentToken = deferredToken?.takeIf(String::isNotBlank)
         val payload = DeviceMatchRequest(
-            token = deferredToken,
+            token = sentToken,
             tenantId = tenantId,
             appId = appId,
         )
@@ -165,6 +178,7 @@ class AdTechClient(
                 settings.putString(KEY_CLICK_ID, body.clickId)
                 settings.putString(KEY_DEEP_LINK, body.deepLink)
                 settings.putString(KEY_ATTRIBUTION_DATA, attributionJson)
+                rememberConsumedToken(sentToken)
 
                 onAttributionData(attributionJson)
 
@@ -178,6 +192,11 @@ class AdTechClient(
             }
 
             HttpStatusCode.NotFound -> {
+                rememberConsumedToken(sentToken)
+                if (previousMatchDone) {
+                    // A new token that did not match keeps the earlier result.
+                    return loadStoredMatchResult(wasFreshMatch = false)
+                }
                 settings.putBoolean(KEY_MATCH_DONE, true)
                 settings.putBoolean(KEY_IS_ORGANIC, true)
                 settings.remove(KEY_CLICK_ID)
@@ -294,6 +313,21 @@ class AdTechClient(
         return true
     }
 
+    private fun hasUnconsumedToken(): Boolean {
+        val token = deferredToken
+        if (token.isNullOrBlank()) {
+            return false
+        }
+        return token != settings.getStringOrNull(KEY_CONSUMED_TOKEN)
+    }
+
+    private fun rememberConsumedToken(token: String?) {
+        if (token == null) {
+            return
+        }
+        settings.putString(KEY_CONSUMED_TOKEN, token)
+    }
+
     private fun consumeAppGroupTokenIfNeeded() {
         if (!deferredToken.isNullOrBlank()) {
             return
@@ -338,6 +372,7 @@ class AdTechClient(
         private const val KEY_DEEP_LINK = "adtech.deep_link"
         private const val KEY_ATTRIBUTION_DATA = "adtech.attribution_data"
         private const val KEY_IS_ORGANIC = "adtech.is_organic"
+        private const val KEY_CONSUMED_TOKEN = "adtech.consumed_match_token"
         private const val MATCH_TOKEN_HEADER = "X-Tixlnk-Match-Token"
         private const val MAX_EVENT_ID_BYTES = 128
         private val json = Json {

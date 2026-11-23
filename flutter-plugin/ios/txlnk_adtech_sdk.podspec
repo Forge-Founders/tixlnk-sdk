@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'txlnk_adtech_sdk'
-  s.version          = '0.2.0'
+  s.version          = '0.2.1'
   s.summary          = 'Tixlnk AdTech attribution SDK Flutter plugin.'
   s.description      = <<-DESC
 Flutter plugin wrapper for the Tixlnk AdTech attribution SDK (KMP core).

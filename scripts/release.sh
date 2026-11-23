@@ -28,15 +28,19 @@ mise x -- gradle -p core-kmp apiCheck
 mise x -- gradle :core-kmp-example-android:assembleDebug
 (
   cd flutter-plugin
-  fvm flutter test
+  mise x -- flutter analyze
+  mise x -- flutter test
 )
 
 echo "==> Bumping flutter-plugin version to ${VERSION}"
 sed -i.bak -E "s/^version: .*/version: ${VERSION}/" flutter-plugin/pubspec.yaml
 rm -f flutter-plugin/pubspec.yaml.bak
 
-git add flutter-plugin/pubspec.yaml
-git commit -m "chore(release): v${VERSION}"
+# The version is normally bumped in the release PR; commit only if it was not.
+if ! git diff --quiet -- flutter-plugin/pubspec.yaml; then
+  git add flutter-plugin/pubspec.yaml
+  git commit -m "chore(release): v${VERSION}"
+fi
 git tag "v${VERSION}"
 
 if [[ "$PUSH" == "true" ]]; then

@@ -13,15 +13,15 @@ void main() {
 
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-            if (methodCall.method == 'getClickId') {
-              return 'clk_123';
-            }
-            if (methodCall.method == 'track') {
-              trackCall = methodCall;
-              return null;
-            }
-            return null;
-          });
+        if (methodCall.method == 'getClickId') {
+          return 'clk_123';
+        }
+        if (methodCall.method == 'track') {
+          trackCall = methodCall;
+          return null;
+        }
+        return null;
+      });
 
       await AdTechSdk.instance.track('purchase', {'value': '99.90'});
 
@@ -37,15 +37,15 @@ void main() {
 
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-            if (methodCall.method == 'getClickId') {
-              return null;
-            }
-            if (methodCall.method == 'track') {
-              trackCall = methodCall;
-              return null;
-            }
-            return null;
-          });
+        if (methodCall.method == 'getClickId') {
+          return null;
+        }
+        if (methodCall.method == 'track') {
+          trackCall = methodCall;
+          return null;
+        }
+        return null;
+      });
 
       await AdTechSdk.instance.track('signup', {'method': 'email'});
 
@@ -64,11 +64,11 @@ void main() {
       MethodCall? trackCall;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-            if (methodCall.method == 'track') {
-              trackCall = methodCall;
-            }
-            return null;
-          });
+        if (methodCall.method == 'track') {
+          trackCall = methodCall;
+        }
+        return null;
+      });
       await send();
       expect(trackCall, isNotNull);
       return trackCall!.arguments as Map<dynamic, dynamic>;
@@ -104,9 +104,9 @@ void main() {
       var nativeCalls = 0;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-            nativeCalls += 1;
-            return null;
-          });
+        nativeCalls += 1;
+        return null;
+      });
 
       final List<Future<void> Function()> invalid = <Future<void> Function()>[
         () => AdTechSdk.instance.track('purchase', {}, eventId: ''),
@@ -115,17 +115,17 @@ void main() {
         () => AdTechSdk.instance.track('purchase', {}, valueCents: 100),
         () => AdTechSdk.instance.track('purchase', {}, currency: 'BRL'),
         () => AdTechSdk.instance.track(
-          'purchase',
-          {},
-          valueCents: -1,
-          currency: 'BRL',
-        ),
+              'purchase',
+              {},
+              valueCents: -1,
+              currency: 'BRL',
+            ),
         () => AdTechSdk.instance.track(
-          'purchase',
-          {},
-          valueCents: 100,
-          currency: 'brl',
-        ),
+              'purchase',
+              {},
+              valueCents: 100,
+              currency: 'brl',
+            ),
       ];
       for (final send in invalid) {
         await expectLater(send(), throwsArgumentError);
@@ -140,11 +140,11 @@ void main() {
 
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-            if (methodCall.method == 'setDeferredLinkToken') {
-              call = methodCall;
-            }
-            return null;
-          });
+        if (methodCall.method == 'setDeferredLinkToken') {
+          call = methodCall;
+        }
+        return null;
+      });
 
       await AdTechSdk.instance.setDeferredLinkToken('tok-abc-123');
 
@@ -161,11 +161,11 @@ void main() {
 
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-            if (methodCall.method == 'setDeferredLinkUrl') {
-              call = methodCall;
-            }
-            return null;
-          });
+        if (methodCall.method == 'setDeferredLinkUrl') {
+          call = methodCall;
+        }
+        return null;
+      });
 
       final url = Uri.parse('https://go.example.test/summer-sale');
       await AdTechSdk.instance.setDeferredLinkUrl(url);
@@ -227,9 +227,9 @@ void main() {
       final List<MethodCall> calls = <MethodCall>[];
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-            calls.add(methodCall);
-            return null;
-          });
+        calls.add(methodCall);
+        return null;
+      });
 
       await AdTechSdk.instance.setDeferredLinkToken('tok-2');
       await AdTechSdk.instance.matchDevice();
@@ -245,18 +245,18 @@ void main() {
     test('delivers the deep link of each new match', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockStreamHandler(
-            deepLinkChannel,
-            MockStreamHandler.inline(
-              onListen: (Object? arguments, MockStreamHandlerEventSink sink) {
-                sink.success('app://first');
-                sink.success('app://second');
-                sink.endOfStream();
-              },
-            ),
-          );
+        deepLinkChannel,
+        MockStreamHandler.inline(
+          onListen: (Object? arguments, MockStreamHandlerEventSink sink) {
+            sink.success('app://first');
+            sink.success('app://second');
+            sink.endOfStream();
+          },
+        ),
+      );
 
-      final List<Uri?> links = await AdTechSdk.instance.onDeferredDeepLink
-          .toList();
+      final List<Uri?> links =
+          await AdTechSdk.instance.onDeferredDeepLink.toList();
 
       expect(links, <Uri?>[
         Uri.parse('app://first'),

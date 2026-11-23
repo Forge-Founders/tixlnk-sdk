@@ -6,15 +6,55 @@ SDK de atribuição para mobile com:
 
 O SDK não coleta sinais do aparelho: o match usa só um token opaco de uso único.
 
-## Versões Obrigatórias (Strict Mode)
+## Versões suportadas
 
-- Flutter: `3.47.9` (Dart `3.13.7`)
-- Kotlin: `2.4.21` (K2 habilitado)
-- AGP: `9.5.0`
-- Gradle Wrapper: `9.8.2`
-- Ktor Client: `3.6.1` (CIO/Darwin)
-- Kotlinx Serialization: `1.12.0`
-- Multiplatform Settings: `1.3.0`
+O SDK não exige uma versão exata de Flutter, Kotlin, AGP ou Gradle. Abaixo estão
+os mínimos suportados; versões mais novas funcionam. O CI deste repositório
+testa o mínimo e a última estável.
+
+### Plugin Flutter (`txlnk_adtech_sdk`)
+
+| Tecnologia | Mínimo | Por quê |
+| --- | --- | --- |
+| Flutter / Dart | Flutter `3.24.0`, Dart `3.5.0` (`sdk: ">=3.5.0 <4.0.0"`, `flutter: ">=3.24.0"`) | O código usa só `MethodChannel`/`EventChannel`. 3.24 é a versão mais antiga testada: app novo do `flutter create` dela (AGP 8.1, Kotlin 1.8.22, Gradle 8.3), com análise, testes e `flutter build apk --debug`. |
+| Android `minSdk` | API 21 | O plugin usa `SharedPreferences`, `HttpURLConnection` e Install Referrer 2.2. O `minSdk` do app costuma ser maior (o padrão do Flutter 3.50 é 24). |
+| Android `compileSdk` | o do Flutter do app (`flutter.compileSdkVersion`, 36 no Flutter 3.50) | Assim o app não recebe aviso de `compileSdk` maior no plugin. No Flutter 3.24, que não expõe esse valor ao plugin, usa 34. |
+| AGP do app | 8.1 | O plugin não fixa AGP nem Kotlin: usa os do app. Com AGP 9 e Kotlin embutido (`android.builtInKotlin=true`) ele não aplica o Kotlin Gradle Plugin; com AGP 8, ou `android.builtInKotlin=false` (o que o `flutter create` 3.50 ainda gera), aplica o plugin Kotlin do app. |
+| Kotlin do app | 1.8.22 | O plugin não declara `kotlin-stdlib`: vale o do app. |
+| Java | bytecode 17; JDK 17 para compilar | Igual ao template atual do Flutter. |
+| iOS deployment target | iOS 12.0 | `UserDefaults(suiteName:)` e `URLSession` existem bem antes; 12.0 é o mínimo do Flutter 3.24. O app pode (e costuma) usar um alvo maior. |
+| Swift | 5.0 | Igual ao template de plugin do Flutter. |
+
+### Biblioteca Kotlin Multiplatform (`core-kmp`)
+
+| Tecnologia | Mínimo para quem consome | Por quê |
+| --- | --- | --- |
+| Kotlin (Android/JVM) | `2.3.0` | Compilada com `languageVersion`/`apiVersion` 2.3. O `kotlinx-serialization-json` 1.13 exige `kotlin-stdlib` 2.4, e o compilador lê metadados de uma versão à frente. Testado com 2.3.21; 2.2.21 falha. |
+| Kotlin (iOS / Kotlin/Native) | `2.4.0` | Klibs carregam a versão de ABI do compilador que as gerou (2.4.0). Testado com 2.4.0; 2.3.21 recusa a klib. |
+| Android `minSdk` | API 24 | |
+| Android bytecode | Java 11 (`jvmTarget = 11`) | |
+| iOS | iOS 15.0 | Mínimo padrão do Kotlin/Native 2.4. Alvos `iosArm64`, `iosSimulatorArm64` e `iosX64`. |
+
+### Versões de desenvolvimento (não são requisito)
+
+O `mise.toml` fixa as ferramentas só para builds reproduzíveis deste repositório
+e do CI: Flutter `3.50.1`, Gradle `9.9.2`, JDK Temurin `25.0.5.1`, gitleaks
+`8.30.1`. A `core-kmp` é compilada com Kotlin `2.4.21`, AGP `9.5.2`, Ktor
+`3.6.1` (CIO/Darwin), kotlinx-serialization `1.13.0`, kotlinx-coroutines
+`1.11.0` e Multiplatform Settings `1.3.0`. O example do plugin usa AGP 9.5.2, Gradle
+9.9.2 e o Kotlin embutido do AGP 9.
+
+Para checar o mínimo do Flutter localmente:
+
+```bash
+mise x flutter@3.24.5 java@temurin-17 -- scripts/flutter-host-check.sh --lowest
+```
+
+O script cria um app novo com o `flutter create` dessa versão, copia o example,
+resolve as dependências pelas versões mínimas e roda análise, testes e
+`flutter build apk --debug`. Sem `--lowest`, usa as versões mais novas; serve
+também para a última estável, cujo template usa AGP 9 com
+`android.builtInKotlin=false`.
 
 ## Estrutura
 
@@ -35,7 +75,7 @@ dependencies:
     git:
       url: https://github.com/Forge-Founders/tixlnk-sdk.git
       path: flutter-plugin
-      ref: v0.2.1 # fixe sempre uma tag publicada
+      ref: v0.3.0 # fixe sempre uma tag publicada
 ```
 
 Se estiver em desenvolvimento local:
@@ -48,30 +88,10 @@ dependencies:
 
 ### 2) Android Gradle (projeto host)
 
-Garanta repositórios e toolchain atualizados:
-
-```kotlin
-// settings.gradle.kts
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-
-dependencyResolutionManagement {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-```
-
-```properties
-# gradle/wrapper/gradle-wrapper.properties
-distributionUrl=https\://services.gradle.org/distributions/gradle-9.8.2-bin.zip
-```
+Não é preciso mudar AGP, Kotlin ou Gradle do app: o plugin usa os do projeto
+host, a partir dos mínimos de [Versões suportadas](#versões-suportadas). Os
+repositórios `google()` e `mavenCentral()` precisam estar declarados, como no
+template do Flutter.
 
 ## Android Setup
 

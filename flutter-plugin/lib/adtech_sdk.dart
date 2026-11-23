@@ -218,8 +218,8 @@ class AdTechSdk {
         .receiveBroadcastStream()
         .map(parseDeferredDeepLinkPayload)
         .handleError((Object error, StackTrace stackTrace) {
-          debugPrint('AdTechSdk.onDeferredDeepLink error: $error');
-        });
+      debugPrint('AdTechSdk.onDeferredDeepLink error: $error');
+    });
   }
 
   /// Callback reativo com dados de atribuição resolvidos pelo match de instalação.
@@ -228,8 +228,8 @@ class AdTechSdk {
   /// O payload recebido é o JSON de `attribution_data` persistido no nativo.
   Stream<Map<String, dynamic>> get onAttributionData {
     return _attributionChannel.receiveBroadcastStream().map(
-      parseAttributionPayload,
-    );
+          parseAttributionPayload,
+        );
   }
 
   @visibleForTesting

@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:app_links/app_links.dart';
+// package:material_ui replaces this import from Flutter 3.47 on, but the
+// example also builds on the minimum supported Flutter (3.24), which lacks it.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:txlnk_adtech_sdk/adtech_sdk.dart';
 

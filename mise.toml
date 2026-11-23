@@ -1,4 +1,8 @@
+# Development and CI pins, for reproducible builds of this repository only.
+# They are not requirements for apps that use the SDK: the supported minimum
+# versions per technology are listed in README.md ("Versões suportadas").
 [tools]
-flutter = "3.47.9"
-gradle = "9.8.2"
+flutter = "3.50.1"
+gradle = "9.9.2"
+java = "temurin-25.0.5.1+2.0.LTS"
 gitleaks = "8.30.1"

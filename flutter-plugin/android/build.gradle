@@ -1,6 +1,14 @@
 group = "com.txlnk.sdk.flutter"
 version = "1.0.0"
 
+// The host app decides the Android Gradle Plugin and Kotlin versions. This
+// plugin only declares what it needs and works with both host setups:
+// - AGP 9+ with built-in Kotlin (android.builtInKotlin=true, AGP's default);
+// - AGP 8.x, or AGP 9 with android.builtInKotlin=false (what `flutter create`
+//   writes up to at least Flutter 3.50), where the host applies the Kotlin
+//   Gradle Plugin itself.
+// Minimum host versions are listed in the repository README.
+
 rootProject.allprojects {
     repositories {
         google()
@@ -10,28 +18,51 @@ rootProject.allprojects {
 
 apply plugin: "com.android.library"
 
+// With built-in Kotlin (AGP 9+ unless android.builtInKotlin=false) the plugin
+// does not apply the Kotlin Gradle Plugin, as Flutter asks of plugins. Hosts
+// without it (AGP 8, or android.builtInKotlin=false) still need KGP to compile
+// the plugin's Kotlin sources, so it is applied only there. The decision uses
+// only the AGP version and a Gradle property, both fixed before this script
+// runs.
+def agpMajor = com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION.tokenize(".")[0].toInteger()
+def hostHasBuiltInKotlin = agpMajor >= 9 && project.findProperty("android.builtInKotlin")?.toString() != "false"
+if (!hostHasBuiltInKotlin) {
+    project.pluginManager.apply("org.jetbrains.kotlin.android")
+}
+
+// Compile against the SDK the host's Flutter uses (36 on Flutter 3.50), so a
+// host never gets a "plugin requires a higher compileSdk" warning. Flutter
+// versions that do not expose it to plugins (3.24) use 34, their default.
+def flutterExtension = project.extensions.findByName("flutter")
+def hostCompileSdk = flutterExtension?.hasProperty("compileSdkVersion") ? flutterExtension.compileSdkVersion : 34
+
 android {
     namespace = "com.txlnk.sdk.flutter"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = hostCompileSdk
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main.java.srcDirs += "src/main/kotlin"
+        test.java.srcDirs += "src/test/kotlin"
     }
 
     defaultConfig {
-        minSdk = flutter.minSdkVersion
+        // SharedPreferences, HttpURLConnection and Install Referrer 2.2 only.
+        minSdk = 21
     }
 }
 
-kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
-    }
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.4.21")
+    // No explicit kotlin-stdlib: the host's Kotlin Gradle Plugin adds the
+    // stdlib that matches the host compiler.
     implementation("com.android.installreferrer:installreferrer:2.2")
     testImplementation("junit:junit:4.13.2")
 }
